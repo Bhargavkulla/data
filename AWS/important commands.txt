@@ -1,0 +1,34 @@
+rm .terraform.lock.hcl
+rm -rf .terraform terraform.tfstate terraform.tfstate.backup
+
+for_each when resources have unique names or properties. Use count when you need a simple, fixed number of identical resources.
+
+terraform init
+
+module "ec2" {
+  source  = "Bhargavkulla/ec2/aws"
+  version = "1.0.0"
+}
+
+webtier -> http -> externallb
+webtier -> http -> myip
+
+internallb ->http ->webtier
+
+privatesg ->tcp->4000 ->internalsg
+privatesg ->tcp->4000 ->myip
+
+dbsg ->MySQL/aurora ->privatesg
+
+create table if not exists transactions(id int not null
+
+auto_increment, amount decimal(10,2), description
+
+varchar(100), primary key(id));
+
+insert into transactions (amount,description) values ('400','groceries);
+
+select * from transactions
+26
+36
+44

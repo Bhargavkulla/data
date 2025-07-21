@@ -1,0 +1,172 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creation of VPC,SG,RouteTB,RTAssociation
+
+Parameters:
+  EnvironmentType: 
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - dev
+      - test
+    
+  VPCCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: default value for Vpc
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-02457590d33d576c3
+    us-west-1:
+      AMI: ami-00ddc330f6182b5cb
+
+Conditions:
+  Prod: !Equals [!Ref EnvironmentType, prod]
+  Dev: !Equals [!Ref EnvironmentType, dev]
+  Test: !Equals [!Ref EnvironmentType, test]
+
+Resources:
+  MYVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+    Tags: 
+      - Key: Name
+        Value: !Sub "StackSet-VPC-${AWS::Region}"
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MYVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MYVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: "PublicSubnet1"
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MYVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: "PublicSubnet2"
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MYVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: "PrivateSubnet1"
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MYVPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: "PrivateSubnet2"
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MYVPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: true
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRTAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRTAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRoutableTable
+
+  ElasticIP:
+    Type: AWS::EC2::ElasticIp
+
+  NATGateWay:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIp.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VPCId: !Ref MYVPC
+  
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateWay
+
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH and HTTP
+      VpcId: !Ref MYVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: "MySecurityGroup"
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref AWS::Region, AMI]
+      InstanceType: !If
+        - Prod
+        - t2.micro
+        - !If
+            - Dev
+            - t2.small
+            - t2.large
+      SecurityGroupIds: 
+      - !Ref SecurityGroup
+      SubnetId: !Ref PublicSubnet1
+    

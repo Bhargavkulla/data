@@ -1,0 +1,247 @@
+#######################
+# variables.tf
+#######################
+
+variable "region" {
+  default = "us-east-1"
+}
+
+variable "vpc_cidr" {
+  default = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidrs" {
+  default = ["10.0.1.0/24", "10.0.2.0/24"]
+}
+
+variable "private_app_subnet_cidrs" {
+  default = ["10.0.3.0/24", "10.0.4.0/24"]
+}
+
+variable "private_db_subnet_cidrs" {
+  default = ["10.0.5.0/24", "10.0.6.0/24"]
+}
+
+variable "ami" {
+  default = "ami-0c2b8ca1dad447f8a" # Amazon Linux 2 AMI in us-east-1
+}
+
+variable "instance_type" {
+  default = "t2.micro"
+}
+
+variable "my_ip" {
+  description = "Your IP address with /32"
+  default     = "167.103.6.206/32" # Replace with your actual IP
+}
+
+#######################
+# main.tf
+#######################
+
+provider "aws" {
+  region = var.region
+}
+
+data "aws_availability_zones" "available" {}
+
+resource "aws_vpc" "main" {
+  cidr_block           = var.vpc_cidr
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  tags = {
+    Name = "3tier-vpc"
+  }
+}
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+}
+
+# Subnets, route tables, and security groups as before...
+
+# IAM Role
+resource "aws_iam_role" "ec2_s3_ssm_role" {
+  name = "ec2-s3-ssm-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "s3_readonly" {
+  role       = aws_iam_role.ec2_s3_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.ec2_s3_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "ec2-profile"
+  role = aws_iam_role.ec2_s3_ssm_role.name
+}
+
+# Launch Template for Web Tier
+resource "aws_launch_template" "web_lt" {
+  name_prefix   = "web-lt-"
+  image_id      = var.ami
+  instance_type = var.instance_type
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2_profile.name
+  }
+  vpc_security_group_ids = [aws_security_group.web_sg.id]
+  user_data = base64encode(<<EOF
+#!/bin/bash
+sudo yum install -y httpd
+sudo systemctl enable httpd
+sudo systemctl start httpd
+aws s3 cp s3://3tierustbucket1/Picture1.jpg /var/www/html/Picture1.jpg
+EOF
+  )
+}
+
+# Launch Template for App Tier
+resource "aws_launch_template" "app_lt" {
+  name_prefix   = "app-lt-"
+  image_id      = var.ami
+  instance_type = var.instance_type
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2_profile.name
+  }
+  vpc_security_group_ids = [aws_security_group.private_sg.id]
+  user_data = base64encode(<<EOF
+#!/bin/bash
+echo "App server running on port 4000" > /tmp/app.txt
+EOF
+  )
+}
+
+# External Load Balancer
+resource "aws_lb" "external" {
+  name               = "external-lb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.lb_sg.id] # Replace with your InternetFacingLBSG
+  subnets            = aws_subnet.public[*].id
+}
+
+resource "aws_lb_target_group" "web_tg" {
+  name     = "web-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+  target_type = "instance"
+  health_check {
+    path = "/Picture1.jpg"
+    matcher = "200"
+  }
+}
+
+resource "aws_lb_listener" "web_listener" {
+  load_balancer_arn = aws_lb.external.arn
+  port              = 80
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web_tg.arn
+  }
+}
+
+# Internal Load Balancer
+resource "aws_lb" "internal" {
+  name               = "internal-lb"
+  internal           = true
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.internal_lb_sg.id]
+  subnets            = aws_subnet.private_app[*].id
+}
+
+resource "aws_lb_target_group" "app_tg" {
+  name     = "app-tg"
+  port     = 4000
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+  target_type = "instance"
+  health_check {
+    path = "/"
+    matcher = "200-499"
+  }
+}
+
+resource "aws_lb_listener" "app_listener" {
+  load_balancer_arn = aws_lb.internal.arn
+  port              = 4000
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_tg.arn
+  }
+}
+
+# Auto Scaling Group for Web Tier
+resource "aws_autoscaling_group" "web_asg" {
+  desired_capacity     = 1
+  max_size             = 2
+  min_size             = 1
+  vpc_zone_identifier  = aws_subnet.public[*].id
+  target_group_arns    = [aws_lb_target_group.web_tg.arn]
+  launch_template {
+    id      = aws_launch_template.web_lt.id
+    version = "$Latest"
+  }
+  tag {
+    key                 = "Name"
+    value               = "web-instance"
+    propagate_at_launch = true
+  }
+}
+
+# Auto Scaling Group for App Tier
+resource "aws_autoscaling_group" "app_asg" {
+  desired_capacity     = 1
+  max_size             = 2
+  min_size             = 1
+  vpc_zone_identifier  = aws_subnet.private_app[*].id
+  target_group_arns    = [aws_lb_target_group.app_tg.arn]
+  launch_template {
+    id      = aws_launch_template.app_lt.id
+    version = "$Latest"
+  }
+  tag {
+    key                 = "Name"
+    value               = "app-instance"
+    propagate_at_launch = true
+  }
+}
+
+# RDS Instance
+resource "aws_db_subnet_group" "db_subnet" {
+  name       = "db-subnet-group"
+  subnet_ids = aws_subnet.private_db[*].id
+}
+
+resource "aws_db_instance" "rds" {
+  identifier              = "mydb"
+  allocated_storage       = 20
+  engine                  = "mysql"
+  engine_version          = "8.0"
+  instance_class          = "db.t3.micro"
+  name                    = "mydatabase"
+  username                = "admin"
+  password                = "MyDBPassword123" # Change this password
+  skip_final_snapshot     = true
+  vpc_security_group_ids  = [aws_security_group.db_sg.id]
+  db_subnet_group_name    = aws_db_subnet_group.db_subnet.name
+  publicly_accessible     = false
+  multi_az                = false
+  deletion_protection     = false
+}

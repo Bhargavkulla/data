@@ -1,0 +1,66 @@
+EMAIL="bhargavaramcloud@gmail.com"
+THRESHOLD=80
+LOG_DIR="/home/cpu/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/system_$(date +%Y%m%d_%H%M%S).log"
+
+CPU=$(top -bn1 | grep "Cpu(s)" | awk '{printf("%.0f", 100 - $8)}')
+MEM=$(free | awk '/Mem:/ {printf("%.0f", $3*100/$2)}')
+DISK=$(df -h | awk '$NF=="/" {print $5}')
+NET=$(ip -4 -o addr show | awk '{print $2, $4}')
+
+{
+echo "Date=$(date)"
+echo "Cpu=$CPU%"
+echo "memory=$MEM%"
+echo "disk=$DISK"
+echo "Network=$NET"
+} > "$LOG_FILE"
+
+MSG=""
+[ "$CPU" -gt "$THRESHOLD" ] && MSG+="high cpu: $CPU%\n"
+[ "$MEM" -gt "$THRESHOLD" ] && MSG+="high memory: $MEM%\n"
+
+[ -n "$MSG" ]&& echo -e "$MSG" | mail -s "Alert on $(hostname)" "$EMAIL"
+
+
+
+
+
+
+#!/bin/bash
+
+echo "Files with read, write, and execute permissions for user: $USER"
+echo "--------------------------------------------------------------"
+
+for file in *; do
+    if [ -f "$file" ] && [ -r "$file" ] && [ -w "$file" ] && [ -x "$file" ]; then
+        echo "$file"
+    fi
+done
+
+
+
+#!/bin/bash
+
+# Check if at least two arguments are given
+if [ "$#" -lt 2 ]; then
+  echo "Usage: $0 word_to_delete file1 [file2 ...]"
+  exit 1
+fi
+
+# The first argument is the word to delete
+word="$1"
+
+# Loop through all files given after the word
+for file in "${@:2}"; do
+  # Check if file exists
+  if [ -f "$file" ]; then
+    # Use sed to delete lines containing the word (edit in-place)
+    sed -i "/$word/d" "$file"
+    echo "Deleted lines containing '$word' from $file"
+  else
+    echo "File $file does not exist."
+  fi
+done
+

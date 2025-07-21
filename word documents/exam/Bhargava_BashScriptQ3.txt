@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Directory to store log files
+LOG_DIR="/c:/Users/path of directory/logs"
+mkdir -p "$LOG_DIR"
+
+# Log file name with timestamp
+LOG_FILE="$LOG_DIR/system_info_$(date +'%Y%m%d_%H%M%S').log"
+
+# Write system information to log file
+{
+    echo "Current Date and Time: $(date)"
+    echo "CPU Usage:"
+    top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
+    echo "Memory Usage:"
+    free -m | awk 'NR==2{printf "Memory Usage: %s/%sMB (%.2f%%)\n", $3,$2,$3*100/$2 }'
+    echo "Disk Space Usage:"
+    df -h | awk '$NF=="/"{printf "Disk Usage: %d/%dGB (%s)\n", $3,$2,$5}'
+} > "$LOG_FILE"
+
+# Rotate logs, keeping only the last 5 logs
+cd "$LOG_DIR"
+ls -t | sed -e '1,5d' | xargs -d '\n' rm -f

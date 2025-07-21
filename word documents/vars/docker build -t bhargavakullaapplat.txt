@@ -1,0 +1,13 @@
+docker build -t bhargavakulla/app:latest .
+docker push bhargavakulla/app:latest
+kubectl create deployment bhargav-deploy --image=nginx --dry-run=client -o yaml > deployment.yaml
+nano deployment.yaml 
+kubectl apply -f deployment.yaml
+kubectl expose deployment bhargav-deploy --port=80 --dry-run=client -o yaml > service.yaml
+nano service.yaml
+kubectl apply -f service.yaml
+kubectl edit service bhargav-deploy
+kubectl get all
+curl 18.209.100.103:31093
+kubectl delete all --all
+

@@ -1,0 +1,130 @@
+#######################
+# variables.tf
+#######################
+
+variable "region" {
+  default = "us-east-1"
+}
+
+variable "vpc_cidr" {
+  default = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidrs" {
+  default = ["10.0.1.0/24", "10.0.2.0/24"]
+}
+
+variable "private_app_subnet_cidrs" {
+  default = ["10.0.3.0/24", "10.0.4.0/24"]
+}
+
+variable "private_db_subnet_cidrs" {
+  default = ["10.0.5.0/24", "10.0.6.0/24"]
+}
+
+variable "ami" {
+  default = "ami-0c2b8ca1dad447f8a" # Amazon Linux 2 AMI in us-east-1
+}
+
+variable "instance_type" {
+  default = "t2.micro"
+}
+
+variable "my_ip" {
+  description = "Your IP address with /32"
+  default     = "167.103.6.206/32" # Replace with your actual IP
+}
+
+#######################
+# main.tf
+#######################
+
+provider "aws" {
+  region = var.region
+}
+
+data "aws_availability_zones" "available" {}
+
+resource "aws_vpc" "main" {
+  cidr_block           = var.vpc_cidr
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  tags = {
+    Name = "3tier-vpc"
+  }
+}
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+}
+
+# Subnets, route tables, and security groups as before...
+
+# IAM Role
+resource "aws_iam_role" "ec2_s3_ssm_role" {
+  name = "ec2-s3-ssm-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "s3_readonly" {
+  role       = aws_iam_role.ec2_s3_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.ec2_s3_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "ec2-profile"
+  role = aws_iam_role.ec2_s3_ssm_role.name
+}
+
+# Launch Template for Web Tier
+resource "aws_launch_template" "web_lt" {
+  name_prefix   = "web-lt-"
+  image_id      = var.ami
+  instance_type = var.instance_type
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2_profile.name
+  }
+  vpc_security_group_ids = [aws_security_group.web_sg.id]
+  user_data = base64encode(<<EOF
+#!/bin/bash
+sudo yum install -y httpd
+sudo systemctl enable httpd
+sudo systemctl start httpd
+aws s3 cp s3://3tierustbucket1/Picture1.jpg /var/www/html/Picture1.jpg
+EOF
+  )
+}
+
+# Launch Template for App Tier
+resource "aws_launch_template" "app_lt" {
+  name_prefix   = "app-lt-"
+  image_id      = var.ami
+  instance_type = var.instance_type
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2_profile.name
+  }
+  vpc_security_group_ids = [aws_security_group.private_sg.id]
+  user_data = base64encode(<<EOF
+#!/bin/bash
+echo "App server running on port 4000" > /tmp/app.txt
+EOF
+  )
+}
+
+# Application Load Balancers (External and Internal), Auto Scaling Groups, and RDS will continue in the next part...
+
+# Next: External/Internal Load Balancers, Target Groups, Listeners, ASGs, RDS setup

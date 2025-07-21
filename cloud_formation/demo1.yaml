@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: creation of instance with prod or dev
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: choose environment what you want
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-02457590d33d576c3
+
+Conditions:
+  IsProd: !Equals [!Ref EnvironmentType, prod]
+ 
+Resources:
+  EC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref AWS::Region, AMI]
+      InstanceType: !If
+        - IsProd
+        - t2.small
+        - t2.micro
+      KeyName: bhargav1
+      Tags:
+        - Key: Name
+          Value: !If
+            - IsProd
+            - prod
+            - dev
+
+
+Outputs:
+  InstanceId:
+    Value: !Ref EC2Instance
+    Description: This is the instance id
+  InstancePublicip:
+    Value: !GetAtt EC2Instance.PublicIp
+    Description: public Ip of Instance
+
+
+
+    

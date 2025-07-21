@@ -1,0 +1,141 @@
+Kubernetes
+
+1)Kubernetes is a Devops deployment tool.
+2)It is mainly used to automate the deployments of container based applications across the cluster of nodes.
+3)It also manages services of containerized applications using various methods like scalability, predictability and high availability.
+
+Kubernetes terminology
+pod: It is a smallest and basic unit of Kubernetes application. THIS OBJECT INDICATES the processes which are running in the cluster
+
+node: 
+1)A node is nothing but a single host, which is used to run the virtual machine or a physical machine
+2)A node in the Kubernetes cluster is known minion.
+
+Service:
+1)A service in Kubernetes is logical set of pods, which work together 
+2)With the help of services users can manage load balancing configurations
+
+Replica set:
+1)A replica set in the Kubernetes is used to identify the particular number of code replicas running at a given time
+2)Replica set replaces replication controller because it is more powerful and allows a user to use the set based label selector
+
+Name space:
+Kubernetes supports various virtual clusters which are known as name spaces. It is a way of dividing the cluster resources between two or more users
+
+Kubelet
+1)In Kubernetes architecture kublet is a primary node agent that runs on each node within a cluster 
+2)It is responsible for managing containers on that node by ensuring they are running according to the provided pod specifications
+3)It acts as a intermediary between Kubernetes control plane and individual worker nodes to execute containerized applications
+4)It receives instructions from the control plane and communicates with the container runtime to start, stop, monitor and check container operations on the node.  
+
+Kubeproxy
+1)kubeproxy is a network proxy that runs on each node in a Kubernetes cluster
+2)It is responsible for routing traffic between services and ports and for implementing virtual Ip for services
+3)The kubeproxy is Kubernetes agent installed on every node in the cluster. It monitors service objects and the changes made to their end points and translates them into actual network rules inside the node.
+
+some important Kubernetes interfaces
+kubectl - kubectl is a command line tool or interface used to interact with a cluster 
+kubeadm - kubeadm is a tool to initialize and configure Kubernetes cluster including setting up control plane components and connecting worker nodes 
+kubelet - kubelet is an agent running on each node within the cluster responsible for managing pods and containers on that node
+
+Essentially kubectl is for user interaction, kubeadm is for cluster creation and kubelet is for managing workloads on individual nodes within the cluster
+
+Using kubectl to create a deployment
+1)once you have running Kubernetes cluster you can deploy your containerized applications on top of it. To do so we create a Kubernetes deployment.
+2)The deployment instructs Kubernetes how to create and update instances of your application.
+3)Once you have created a deployment the Kubernetes control plane schedules the application instances included in that deployment to run on individual nodes in the cluster
+4)Once application instances are created Kubernetes deployment controller continuously monitors those instances
+5)If the node hosting an instance goes down or gets deleted the deployment controller replaces the instance with an instance on another node in the cluster 
+6)This provides a self healing mechanism to address machine failure or maintenance
+
+Kubernetes Architecture
+1)The architecture of Kubernetes follows the client server architecture. It consist of two main components 
+i)Master node(control plane)
+ii)Worker node(slave node)
+
+API server
+The Kubernetes API server receives the REST commands which are sent by the user. After receiving, it validates the REST requests, process, and then executes them. After the execution of REST commands, the resulting state of a cluster is saved in 'etcd' as a distributed key-value storage.
+
+Scheduler
+The Scheduler in a master node schedules the tasks to the worker nodes. And for every worker node, it is used  to store the resource usage information. In other words, it is a process that is responsible for assigning pods to the available worker nodes.
+
+Controller Manager
+The Controller manager is also know as a controller. It is a daemon that executes in the non-terminating control loops. The controllers in a master node perform a task and manage the state of the cluster. in the Kubernetes the controller manager executes the various types of controllers for handling the nodes, endpoints etc.
+
+ETCD
+It is an open-source, simple, distributed key-value storage which is used to store the cluster data. It is a part of  a master node which is written in a GO programming language.
+
+Now, we have learned about the functioning and components of a master node.
+
+Worker/Slave node
+The worker node in Kubernetes is also known as minions.  
+ 
+Kubernetes is a open source container orchestration platform
+kubctlt apply -f sample_deploy.yaml
+kubectl get deploy
+kubectl get pods
+kubectl get replicaset
+kubectl describe deploy my_deployment
+kubectl describe replicaset my_deployment-9766
+kubectl edit deployment my_deployment
+kubectl delete pod <podname>
+kubectl delete -f .
+kubectl get all
+kubectl get pods -o wide(With ip)
+
+
+Jfrog artifactory is a universal devops solution that manages and automates artifacts and binarys from start to finish during the application delivery process it gives you the option to choose from 25+ software build packages, all major CI/CD systems and other existing devops tools. It is a single solution for housing and managing all software managing artifacts, AIML models, Packages, Files and releases software supply chain.
+
+MS Build is a build tool that helps automate the process of creating a software product including compiling the source code packaging testing deployment and creating documentations
+
+With MS Build it is possible to build visual studio projects and solutions without the visual studio IDE installed.
+
+A Build tool Automates the transformation of source code into an executable and deployable program.
+
+https://forms.office.com/Pages/ResponseDetailPage.aspx?id=Sx9DpAfCM0eVMDTAipsrjZ_UKc9g6fxCraGq73thhSRUMVFGMzMwWlg4VkhaNzU4Nk9JWVkwMVdEQi4u&rid=1&GetResponseToken=19GhCzmoRS3JoIy_p2B3OrXrO15v6qT9iaTdF6Mwr2k&origin=rc&prevsubpage=rcfre&d1obforrc=1&rcsidebar=0
+ 
+
+
+
+
+
+
+Ansible is an open source IT engine that automates application deployment, cloud provisioning, Infra service orchestration and other IT tools.
+
+Ansible pushes modules to the clients and these modules are locally executed on the client side and the output is pushed back to the ansible server
+
+Ansible is designed for multi-tier deployment 
+
+Ansible is agent less which means it works by connecting nodes through SSH
+
+In Ansible the management is the controlling node that controls the entire execution of the playbook 
+
+The Inventory file provides the list of host where ansible modules need to be run
+
+The Management node makes an SSH connection and executes the small modules on the host machine and install the software. These modules are removed once the task is completed.
+
+jekins with docker 2
+
+
+ustjenkins1220@mml.local
+ghtdfvcsdfre
+
+
+
+Request for extension of sick leave
+
+Hi Sanjay,
+
+
+I hope this message finds you well. I am writing to inform you that I am still unwell and, unfortunately, will need to extend my sick leave for one more day. I had hoped to recover by today, but I am not yet well enough to return to work.
+
+Thank you for your understanding and support. I will keep you updated on my condition and let you know as soon as I am able to return to work.
+
+
+Best Regards,
+Bhargava Ram Kulla
+
+ 
+
+   
+

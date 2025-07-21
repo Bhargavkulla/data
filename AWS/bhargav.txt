@@ -1,0 +1,2 @@
+﻿User name,Password,Console sign-in URL
+bhargavust,Bhargav@123,https://423623849965-mml.signin.aws.amazon.com/console

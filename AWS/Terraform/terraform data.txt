@@ -1,0 +1,47 @@
+provider "aws" {
+  region = "us-east-1"
+}
+
+# Fetch AWS Region
+data "aws_region" "current" {}
+
+# Fetch existing VPC information
+data "aws_vpc" "existing_vpc" {
+  id = "vpc-036eb070760c9c707"
+}
+
+# Fetch existing Subnet information for public subnet
+data "aws_subnet" "public_subnet" {
+  id = "subnet-006a7fcbc1ca0c09b"
+}
+
+# Fetch existing Subnet information for private subnet
+data "aws_subnet" "private_subnet" {
+  id = "subnet-060f7e1e0f53dd5f1"
+}
+
+# Fetch an existing Amazon Linux 2 AMI
+data "aws_ami" "latest_ami" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+}
+
+# Fetch available Availability Zones
+data "aws_availability_zones" "available" {}
+
+# Launch EC2 instance using existing resources
+resource "aws_instance" "example_instance" {
+  ami                    = data.aws_ami.latest_ami.id
+  instance_type          = "t2.micro"
+  subnet_id              = data.aws_subnet.public_subnet.id
+  availability_zone      = data.aws_availability_zones.available.names[0]
+
+  tags = {
+    Name = "Existing-Resource-Instance"
+  }
+}

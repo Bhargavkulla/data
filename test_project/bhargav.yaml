@@ -1,0 +1,294 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Retail Store Microservices Infrastructure – VPC, Subnets, IGW, NAT GW, EKS, RDS, DynamoDB
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: RDS Settings
+        Parameters:
+          - RdsMasterUsername
+          - RdsMasterPassword
+
+Parameters:
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+  PublicSubnetAz1Cidr:
+    Type: String
+    Default: 10.0.1.0/24
+  PublicSubnetAz2Cidr:
+    Type: String
+    Default: 10.0.2.0/24
+  PrivateSubnetAz1Cidr:
+    Type: String
+    Default: 10.0.3.0/24
+  PrivateSubnetAz2Cidr:
+    Type: String
+    Default: 10.0.4.0/24
+  RdsMasterUsername:
+    Type: String
+    Description: Master username for RDS
+  RdsMasterPassword:
+    Type: String
+    Description: Master password for RDS
+    NoEcho: true
+
+Resources:
+  EcommerceVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: ecommerce-vpc }]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: [{ Key: Name, Value: igw-ecommerce }]
+
+  AttachIgw:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref EcommerceVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref EcommerceVPC
+      CidrBlock: !Ref PublicSubnetAz1Cidr
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags: [{ Key: Name, Value: public-subnet-1 }]
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref EcommerceVPC
+      CidrBlock: !Ref PublicSubnetAz2Cidr
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags: [{ Key: Name, Value: public-subnet-2 }]
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref EcommerceVPC
+      CidrBlock: !Ref PrivateSubnetAz1Cidr
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags: [{ Key: Name, Value: private-subnet-1 }]
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref EcommerceVPC
+      CidrBlock: !Ref PrivateSubnetAz2Cidr
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags: [{ Key: Name, Value: private-subnet-2 }]
+
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: AttachIgw
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags: [{ Key: Name, Value: natgw-ecommerce }]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref EcommerceVPC
+      Tags: [{ Key: Name, Value: public-rt }]
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachIgw
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref EcommerceVPC
+      Tags: [{ Key: Name, Value: private-rt }]
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PublicSubnet1RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateSubnet1RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  EKSClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [eks.amazonaws.com]
+            Action: [sts:AssumeRole]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  EKSAdminIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EKSAdminIAMRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: ecommerce-cluster
+      Version: "1.28"
+      RoleArn: !GetAtt EKSClusterRole.Arn
+      ResourcesVpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        EndpointPrivateAccess: true
+        EndpointPublicAccess: true
+      AccessConfig:
+        AuthenticationMode: API
+        BootstrapClusterCreatorAdminPermissions: true
+
+  EKSNodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ec2.amazonaws.com]
+            Action: [sts:AssumeRole]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+  EKSNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      NodegroupName: ecommerce-nodes
+      NodeRole: !GetAtt EKSNodeRole.Arn
+      Subnets:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      ScalingConfig:
+        MinSize: 1
+        DesiredSize: 2
+        MaxSize: 3
+      InstanceTypes: [t3.medium]
+      AmiType: AL2_x86_64
+      DiskSize: 20
+
+  RdsSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DB subnet group for ecommerce app
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags: [{ Key: Name, Value: ecommerce-db-subnet-group }]
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow MySQL access from within VPC
+      VpcId: !Ref EcommerceVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 10.0.0.0/16
+
+  CatalogDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: catalog-db
+      AllocatedStorage: 20
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      MasterUsername: !Ref RdsMasterUsername
+      MasterUserPassword: !Ref RdsMasterPassword
+      VPCSecurityGroups: [!Ref RdsSecurityGroup]
+      DBSubnetGroupName: !Ref RdsSubnetGroup
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 1
+      DBName: catalogdb
+
+  DynamoCartTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: cart
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+Outputs:
+  VpcId:
+    Description: VPC ID
+    Value: !Ref EcommerceVPC
+  PublicSubnet1Id:
+    Value: !Ref PublicSubnet1
+  PublicSubnet2Id:
+    Value: !Ref PublicSubnet2
+  PrivateSubnet1Id:
+    Value: !Ref PrivateSubnet1
+  PrivateSubnet2Id:
+    Value: !Ref PrivateSubnet2
+  EKSClusterName:
+    Description: EKS Cluster Name
+    Value: !Ref EKSCluster
+  CatalogDbEndpoint:
+    Description: MySQL endpoint for catalog service
+    Value: !GetAtt CatalogDB.Endpoint.Address

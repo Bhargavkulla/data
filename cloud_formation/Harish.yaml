@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: creation of template in multiple regions
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+
+Mappings:
+  RegionMap:
+    us-east-2:
+      AMI: ami-0ae9f87d24d606be4
+    us-west-1:
+      AMI: ami-00ddc330f6182b5cb
+  EnvironmentMap:
+    dev:
+      InstanceType: t2.micro
+    prod:
+      InstanceType: t2.small
+
+Resources:
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref AWS::Region, AMI]
+      InstanceType: !FindInMap [EnvironmentMap, !Ref EnvironmentType, InstanceType]
+      
+Outputs:
+  EC2InstanceId:
+    Value: !Ref EC2Instance
+    Description: Id of Ec2 instance
+  EC2InstancePublicIp:
+    Value: !GetAtt EC2Instance.PublicIp
+    Description: PublicIp of Ec2 Instance
